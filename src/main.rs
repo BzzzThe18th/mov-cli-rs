@@ -1,151 +1,199 @@
 #![allow(dead_code)]
-use clap::Parser;
-use gql_client::GraphQLErrorMessage;
-use reqwest::{blocking::{self, get}, dns::Resolving, header::{self, HeaderMap}, redirect};
-use serde_json::{Value};
-use std::{default, error::{self, Error}, fmt::format, io::{BufRead, BufReader, Read}, process::Command};
+use reqwest::{blocking, header, redirect};
+use std::{error::Error, vec};
 
-#[derive(Parser)]
-struct Cli {
-    /// search term to look for
-    #[arg(short, long, default_value_t=("%20".to_string()))]
-    search_term: String,
+const AGENT: &str ="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0";
+const BRAFLIX_REFR: &str ="https://www.braflix.video";
+const BRAFLIX_VID: &str ="https://vidsrc.braflix.video";
+const BRAFLIX_API: &str ="https://api.braflix.video";
+const TMDB_API: &str = "https://api.themoviedb.org";
+const TMDB_API_KEY: &str = "d39245e111947eb92b947e3a8aacc89f";
+
+#[derive(serde::Deserialize)]
+struct EpisodeInfo {
+    episode_number: i32,
+    id: i32,
+    name: String,
+    runtime: i32,
+    season_number: i32,
+    show_id: i32,
 }
-const AGENT: &str ="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0";
-const ALLANIME_REFR: &str ="https://allanime.to";
-const ALLANIME_BASE: &str ="allanime.day";
-const ALLANIME_API: &str ="https://api.allanime.day";
-const MODE: &str ="dub";
-// const DOWNLOAD_DIR: &str =".";
-const QUALITY: &str ="best";
+
+#[derive(serde::Deserialize)]
+struct SeasonInfo {
+    _id: String,
+    air_date: String,
+    episodes: Vec<EpisodeInfo>,
+    name: String,
+    id: i32,
+    season_number: i32,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct SeriesInfo {
+    adult: bool,
+    id: i32,
+    name: Option<String>,
+    title: Option<String>,
+    original_language: Option<String>,
+    media_type: String,
+    release_date: Option<String>,
+    first_air_date: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct SearchResults {
+    page: i32,
+    results: Vec<SeriesInfo>,
+    total_pages: i32,
+    total_results: i32,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct SubtitleTrack {
+    url: Option<String>,
+    file: Option<String>,
+    lang: Option<String>,
+    language: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct APISource {
+    url: String,
+    quality: String,
+}
+
+#[derive(serde::Deserialize)]
+struct APISourceResults {
+    sources: Option<Vec<APISource>>,
+    subtitles: Option<Vec<SubtitleTrack>>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct VidSourceData {
+    file: String,
+    sub: Vec<SubtitleTrack>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum IntOrVidSourceData {
+    A(VidSourceData),
+    B(i32),
+}
+
+#[derive(serde::Deserialize)]
+struct VidSource {
+    name: String,
+    data: IntOrVidSourceData,
+}
 
 fn main() {
-    let args = Cli::parse();
-
-    let client = blocking::Client::builder()
-        .redirect(redirect::Policy::none())
-        .build()
-        .unwrap();
-    
     let mut headers = header::HeaderMap::new();
     headers.insert("User-Agent", header::HeaderValue::from_str(AGENT).unwrap());
-    headers.insert("Referer", header::HeaderValue::from_str(ALLANIME_REFR).unwrap());
-    
-    if args.search_term != "%20" {
-        search(client, headers.clone(), args.search_term.clone()).expect("Failed search");
-    } else {
-        println!("{}", "Search For an Anime: ");
-        let stdin = std::io::stdin();
-        let line1 = stdin.lock().lines().next().unwrap().unwrap();
-        let search_results = search(client, headers.clone(), line1).expect("Failed search");
-        let json: Value = serde_json::from_str(&search_results).unwrap();
-        let episodes = &json["data"]["shows"]["edges"];
-        for i in 0..episodes.as_array().unwrap().len() {
-            let episode = &episodes[i];
-            println!("{}", format!("{} {} ({} episodes)", i + 1, episode["name"], episode["availableEpisodes"]["dub"]))
+    headers.insert("Referer", header::HeaderValue::from_str(BRAFLIX_REFR).unwrap());
+    headers.insert("Origin", header::HeaderValue::from_str(BRAFLIX_REFR).unwrap());
+    let client = blocking::Client::builder()
+        .redirect(redirect::Policy::none())
+        .cookie_store(true)
+        .default_headers(headers)
+        .build()
+        .unwrap();
+
+    let search = search(client.clone(), "despicable me 3".to_string()).unwrap();
+    let episode_link = get_link_from_api_source(client.clone(), search.results[0].clone(), "1".to_string(), "1".to_string()).and_then(|result|{
+        if result.is_empty() {
+            get_link_from_vid_source(client, search.results[0].id.to_string(), "1".to_string(), "1".to_string()).and_then(|vid_result|{
+                if vid_result.is_empty() {
+                    Err("Not able to find any link".into())
+                } else {
+                    Ok(vid_result)
+                }
+            })
+        } else {
+            Ok(result)
         }
+    });
+    println!("Fetched episode with link {}", episode_link.unwrap());
+}
+
+fn try_flixhq(client: blocking::Client, mut series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
+    if !series.first_air_date.is_none() { series.first_air_date = Some(series.first_air_date.unwrap().split_at_mut(4).0.to_string()); }
+    if !series.release_date.is_none() { series.release_date = Some(series.release_date.unwrap().split_at_mut(4).0.to_string()); }
+    let url = format!("{0}/flixhq/sources-with-title?title={1}&year={2}&mediaType={3}&episodeId={4}&seasonId={5}&tmdbId={6}", BRAFLIX_API, if series.name.is_none() {series.title.unwrap()} else {series.name.unwrap()}, if series.release_date.is_none() {series.first_air_date.unwrap()} else {series.release_date.unwrap()}, series.media_type, episode, season, series.id);
+
+    let json: APISourceResults = client.get(&url)
+        .send()?
+        .json()
+        .unwrap();
+    if !json.sources.is_none() {
+        let mut sources = json.sources.unwrap();
+        sources.sort_by_key(|k| k.quality.replace("Auto", "0").replace("p", "").parse::<i32>().unwrap());
+        sources.reverse();
+        return Ok(sources[0].url.to_string())
     }
+    println!("Failed to fetch with Braflix API - FlixHQ");
+    Ok("".to_string())
 }
 
-fn search(client: blocking::Client, headers: header::HeaderMap, search_term: String) -> Result<String, Box<dyn Error>> {
-    let search_gql = r#"
-    query (
-        $search: SearchInput
-        $limit: Int
-        $page: Int
-        $translationType: VaildTranslationTypeEnumType
-        $countryOrigin: VaildCountryOriginEnumType
-        ) {
-            shows(
-                search: $search
-                limit: $limit
-                page: $page
-                translationType: $translationType
-                countryOrigin: $countryOrigin
-                ) {
-            edges {
-                _id
-                name
-                availableEpisodes
-                __typename
-            }
+fn try_vidsrc(client: blocking::Client, mut series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
+    if !series.first_air_date.is_none() { series.first_air_date = Some(series.first_air_date.unwrap().split_at_mut(4).0.to_string()); }
+    if !series.release_date.is_none() { series.release_date = Some(series.release_date.unwrap().split_at_mut(4).0.to_string()); }
+    let url = format!("{0}/vidsrc/sources-with-title?title={1}&year={2}&mediaType={3}&episodeId={4}&seasonId={5}&tmdbId={6}", BRAFLIX_API, if series.name.is_none() {series.title.unwrap()} else {series.name.unwrap()}, if series.release_date.is_none() {series.first_air_date.unwrap()} else {series.release_date.unwrap()}, series.media_type, episode, season, series.id);
+    println!("{}", url);
+    let json: APISourceResults = client.get(&url)
+        .send()?
+        .json()
+        .unwrap();
+    if !json.sources.is_none() {
+        let mut sources = json.sources.unwrap();
+        sources.sort_by_key(|k| k.quality.replace("Auto", "0").replace("p", "").parse::<i32>().unwrap());
+        sources.reverse();
+        return Ok(sources[0].url.to_string())
+    }
+    println!("Failed to fetch with Braflix API - VidSrc");
+    Ok("".to_string())
+}
+
+fn get_link_from_api_source(client: blocking::Client, series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
+    let res = try_flixhq(client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|result|
+        if result.ends_with(".m3u8") { Ok(result) } else { 
+            try_vidsrc(client, series, season, episode)
         }
-    }      
-    "#;
-    let res = client.get([ALLANIME_API, "/api?variables=%7B%22search%22%3A%7B%22allowAdult%22%3Afalse%2C%22allowUnknown%22%3Afalse%2C%22query%22%3A%22", &search_term, "%22%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22", MODE, "%22%2C%22countryOrigin%22%3A%22ALL%22%7D&query=", search_gql].concat())
-        .headers(headers)
-        .send()?
-        .text()?;
-
-    Ok(res)
+    );
+    Ok(res.unwrap())
 }
 
-fn provider_init(provider_name: &str, other_thing: &str, episode_url_res: String) -> Result<String, Box<dyn Error>> {
-    let mut buffer = String::new();
-    Command::new(format!(r#"printf "%s" "{0}" | sed -n "{1}" | head -1 | cut -d':' -f2 | sed 's/../&\n/g' | sed 's/^01$/9/g;s/^08$/0/g;s/^05$/=/g;s/^0a$/2/g;s/^0b$/3/g;s/^0c$/4/g;s/^07$/?/g;s/^00$/8/g;s/^5c$/d/g;s/^0f$/7/g;s/^5e$/f/g;s/^17$/\//g;s/^54$/l/g;s/^09$/1/g;s/^48$/p/g;s/^4f$/w/g;s/^0e$/6/g;s/^5b$/c/g;s/^5d$/e/g;s/^0d$/5/g;s/^53$/k/g;s/^1e$/\&/g;s/^5a$/b/g;s/^59$/a/g;s/^4a$/r/g;s/^4c$/t/g;s/^4e$/v/g;s/^57$/o/g;s/^51$/i/g;' | tr -d '\n' | sed "s/\/clock/\/clock\.json/""#, episode_url_res, other_thing))
-        .output()
-        .unwrap()
-        .stdout
-        .as_slice()
-        .read_to_string(&mut buffer)?;
-    println!("{}", buffer);
-    Ok(buffer)
-}
-
-fn get_links(client: blocking::Client, headers: HeaderMap, provider_id: String) -> Result<String, Box<dyn Error>> {
-    let episode_link = client.get(["https://", ALLANIME_BASE, &provider_id].concat())
-        .headers(headers)
+fn get_link_from_vid_source(client: blocking::Client, show_id: String, season: String, episode: String) -> Result<String, Box<dyn Error>> {
+    let url = format!("{0}/vidsrc/{1}?s={2}&e={3}", BRAFLIX_VID, show_id, season, episode);
+    let json: Vec<VidSource> = client.get(url)
         .send()?
-        .text()?
-        .as_str();
-    let _ = match episode_link {
-        "repackager.wixmp.com" => {
-            let extract_link = 
-        },
+        .json()
+        .unwrap();
+    let binding = VidSourceData {
+            file: "".to_string(),
+            sub: vec![],
+        };
+    let data = match &json[0].data {
+        IntOrVidSourceData::A(source) => source,
+        IntOrVidSourceData::B(_) => &binding,
     };
+    Ok(data.file.to_string())
 }
 
-fn generate_link(client: blocking::Client, headers: HeaderMap, provider: &str, episode_url_res: String) {
-    let provider_id = match provider {
-        "1" => provider_init("wixmp", "/Default :/p", episode_url_res),
-        "2" => provider_init("dropbox", "/Sak :/p", episode_url_res),
-        "3" => provider_init("wetransfer", "/Kir :/p", episode_url_res),
-        "4" => provider_init("sharepoint", "/S-mp4 :/p", episode_url_res),
-        default => provider_init("gogoanime", "/Luf-mp4 :/p", episode_url_res)
-    };
-    if (!provider_id.unwrap().is_empty()) {
-        get_links(client, headers, provider_id.unwrap());
-    }
-}
-
-fn get_episode_url(client: blocking::Client, headers: HeaderMap, show_id: String, translation_type: String, episode_string: String) -> Result<String, Box<dyn Error>> {
-    let episode_embed_gql = r#"
-    query (
-        $showId: String!
-        $translationType: VaildTranslationTypeEnumType!
-        $episodeString: String!
-    ) {
-        episode(
-            showId: $showId
-            translationType: $translationType
-            episodeString: $episodeString
-        ) {
-            episodeString
-            sourceUrls
-        }
-    }      
-    "#;
-
-    let res = client.get(["http://", ALLANIME_API, "/api?variables=%7B%22showId%22%3A%22", &show_id, "%22%2C%22translationType%22%3A%22", &translation_type, "%22%2C%22episodeString%22%3A%22", &episode_string, "%22%7D&query=", &episode_embed_gql].concat())
-        .headers(headers)
+fn get_season(client: blocking::Client, media_type: String, id: String, season_num: String) -> Result<SeasonInfo, Box<dyn Error>> {
+    let json: SeasonInfo = client.get([TMDB_API, "/3/", &media_type, "/", &id, "/season/", &season_num, "?langauge=en&api_key=", TMDB_API_KEY].concat())
         .send()?
-        .text()?;
-    let mut buffer: String = String::new();
-    let cache_dir = tempfile::tempdir().unwrap();
-    let providers = vec!["1","2","3","4","5"];
-    for provider in providers {
-        generate_link(client, headers, &format!("{0}/{1}", cache_dir.path().to_str().unwrap(), provider), res.clone())
-    }
-    
-    Ok(res)
+        .json()
+        .unwrap();
+    Ok(json)
+}
+
+fn search(client: blocking::Client, search_term: String) -> Result<SearchResults, Box<dyn Error>> {
+    println!("{}", [TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_API_KEY].concat());
+    let json: SearchResults = client.get([TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_API_KEY].concat())
+        .send()?
+        .json()
+        .unwrap();
+    Ok(json)
 }
