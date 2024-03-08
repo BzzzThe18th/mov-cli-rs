@@ -7,8 +7,9 @@ const BRAFLIX_REFR: &str ="https://www.braflix.video";
 const BRAFLIX_VID: &str ="https://vidsrc.braflix.video";
 const BRAFLIX_API: &str ="https://api.braflix.video";
 const TMDB_API: &str = "https://api.themoviedb.org";
-const TMDB_API_KEY: &str = "d39245e111947eb92b947e3a8aacc89f";
+const TMDB_BRAFLIX_API_KEY: &str = "d39245e111947eb92b947e3a8aacc89f";
 
+// TODO: trim down on structs
 #[derive(serde::Deserialize)]
 struct EpisodeInfo {
     episode_number: i32,
@@ -17,16 +18,6 @@ struct EpisodeInfo {
     runtime: i32,
     season_number: i32,
     show_id: i32,
-}
-
-#[derive(serde::Deserialize)]
-struct SeasonInfo {
-    _id: String,
-    air_date: String,
-    episodes: Vec<EpisodeInfo>,
-    name: String,
-    id: i32,
-    season_number: i32,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -100,6 +91,7 @@ fn main() {
         .build()
         .unwrap();
 
+    // TODO: swtich searching over to cli using clap and skim tldr; do ui
     let search = search(client.clone(), "despicable me 3".to_string()).unwrap();
     let episode_link = get_link_from_api_source(client.clone(), search.results[0].clone(), "1".to_string(), "1".to_string()).and_then(|result|{
         if result.is_empty() {
@@ -117,6 +109,7 @@ fn main() {
     println!("Fetched episode with link {}", episode_link.unwrap());
 }
 
+// TODO: pretty all of this up
 fn try_flixhq(client: blocking::Client, mut series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
     if !series.first_air_date.is_none() { series.first_air_date = Some(series.first_air_date.unwrap().split_at_mut(4).0.to_string()); }
     if !series.release_date.is_none() { series.release_date = Some(series.release_date.unwrap().split_at_mut(4).0.to_string()); }
@@ -132,7 +125,6 @@ fn try_flixhq(client: blocking::Client, mut series: SeriesInfo, season: String, 
         sources.reverse();
         return Ok(sources[0].url.to_string())
     }
-    println!("Failed to fetch with Braflix API - FlixHQ");
     Ok("".to_string())
 }
 
@@ -158,6 +150,7 @@ fn try_vidsrc(client: blocking::Client, mut series: SeriesInfo, season: String, 
 fn get_link_from_api_source(client: blocking::Client, series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
     let res = try_flixhq(client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|result|
         if result.ends_with(".m3u8") { Ok(result) } else { 
+            println!("Failed to fetch with Braflix API - FlixHQ");
             try_vidsrc(client, series, season, episode)
         }
     );
@@ -181,17 +174,9 @@ fn get_link_from_vid_source(client: blocking::Client, show_id: String, season: S
     Ok(data.file.to_string())
 }
 
-fn get_season(client: blocking::Client, media_type: String, id: String, season_num: String) -> Result<SeasonInfo, Box<dyn Error>> {
-    let json: SeasonInfo = client.get([TMDB_API, "/3/", &media_type, "/", &id, "/season/", &season_num, "?langauge=en&api_key=", TMDB_API_KEY].concat())
-        .send()?
-        .json()
-        .unwrap();
-    Ok(json)
-}
-
 fn search(client: blocking::Client, search_term: String) -> Result<SearchResults, Box<dyn Error>> {
-    println!("{}", [TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_API_KEY].concat());
-    let json: SearchResults = client.get([TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_API_KEY].concat())
+    println!("{}", [TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_BRAFLIX_API_KEY].concat());
+    let json: SearchResults = client.get([TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_BRAFLIX_API_KEY].concat())
         .send()?
         .json()
         .unwrap();
