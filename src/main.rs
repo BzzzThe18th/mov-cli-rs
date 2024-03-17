@@ -1,83 +1,32 @@
-#![allow(dead_code)]
+//external refs
 use reqwest::{blocking, header, redirect};
-use serde::de::Visitor;
-use std::{error::Error, vec};
+use std::process::Command;
+use clap::{self, Parser};
 
-const AGENT: &str ="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0";
-const BRAFLIX_REFR: &str ="https://www.braflix.video";
-const BRAFLIX_VID: &str ="https://vidsrc.braflix.video";
-const BRAFLIX_API: &str ="https://api.braflix.video";
-const TMDB_API: &str = "https://api.themoviedb.org";
-const TMDB_BRAFLIX_API_KEY: &str = "d39245e111947eb92b947e3a8aacc89f";
+//internal refs
+mod scraping;
+use scraping::{get_link, search};
+mod constants;
+use constants::{AGENT, BRAFLIX_REFR};
 
-// TODO: trim down on structs
-#[derive(serde::Deserialize)]
-struct EpisodeInfo {
-    episode_number: i32,
-    id: i32,
-    name: String,
-    runtime: i32,
-    season_number: i32,
-    show_id: i32,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct SeriesInfo {
-    adult: bool,
-    id: i32,
-    name: Option<String>,
-    title: Option<String>,
-    original_language: Option<String>,
-    media_type: String,
-    release_date: Option<String>,
-    first_air_date: Option<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct SearchResults {
-    page: i32,
-    results: Vec<SeriesInfo>,
-    total_pages: i32,
-    total_results: i32,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct SubtitleTrack {
-    url: Option<String>,
-    file: Option<String>,
-    lang: Option<String>,
-    language: Option<String>,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct APISource {
-    url: String,
-    quality: String,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct APISourceResults {
-    sources: Option<Vec<APISource>>,
-    subtitles: Option<Vec<SubtitleTrack>>,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct VidSourceData {
-    file: String,
-    sub: Vec<SubtitleTrack>,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(untagged)]
-enum IntOrVidSourceData {
-    A(VidSourceData),
-    B(i32),
-}
-
-#[derive(serde::Deserialize)]
-struct VidSource {
-    name: String,
-    data: IntOrVidSourceData,
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Use last found english subtitles
+    #[arg(long, default_value_t=true)]
+    ensub: bool,
+    /// Immediately use the first result instead of allowing navigation of results
+    #[arg(short, long, default_value_t=false)]
+    first: bool,
+    /// Media to search for
+    #[arg(long)]
+    search: String,
+    /// Season to search for (1 for movies)
+    #[arg(short, long, default_value_t=0)]
+    season: i32,
+    /// Episode to search for (1 for movies)
+    #[arg(short, long, default_value_t=0)]
+    episode: i32,
 }
 
 fn main() {
@@ -92,98 +41,29 @@ fn main() {
         .build()
         .unwrap();
 
-    // TODO: swtich searching over to cli using clap and skim tldr; do ui
-    let search = search(client.clone(), "the simpsons".to_string()).unwrap();
-    let episode_link = get_link(client.clone(), search.results[0].to_owned(), search.results[0].id.to_string(), "25".to_string(), "18".to_string());
-    println!("Fetched episode with link {}", episode_link.unwrap());
-}
-
-fn try_get_link_from_api_source(provider: String, client: blocking::Client, mut series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
-    if !series.first_air_date.is_none() { series.first_air_date = Some(series.first_air_date.unwrap().split_at_mut(4).0.to_string()); }
-    if !series.release_date.is_none() { series.release_date = Some(series.release_date.unwrap().split_at_mut(4).0.to_string()); }
-    let url = format!("{0}/{1}/sources-with-title?title={2}&year={3}&mediaType={4}&episodeId={5}&seasonId={6}&tmdbId={7}", BRAFLIX_API, provider, if series.name.is_none() {series.title.unwrap()} else {series.name.unwrap()}, if series.release_date.is_none() {series.first_air_date.unwrap()} else {series.release_date.unwrap()}, series.media_type, episode, season, series.id);
-    let json: APISourceResults = client.get(&url)
-        .send()?
-        .json()
-        .unwrap();
-    if !json.sources.is_none() {
-        let mut sources = json.sources.unwrap();
-        sources.sort_by_key(|k| k.quality.replace("Auto", "0").replace("p", "").parse::<i32>().unwrap());
-        sources.reverse();
-        let subs = json.subtitles.unwrap();
-        for sub_track in 0..subs.len() {
-            println!("Subtitle found with language string {}", subs[sub_track].clone().lang.unwrap_or_else(|| {subs[sub_track].clone().language.expect("Failed to get both languages for sub track")}));
-        }
-        return Ok(sources[0].url.to_string())
-    }
-    println!("Failed to fetch with Braflix API - {}", provider);
-    Ok("".to_string())
-}
-
-fn get_link_from_api_source(client: blocking::Client, series: SeriesInfo, season: String, episode: String) -> Result<String, Box<dyn Error>> {
-    let res = try_get_link_from_api_source("flixhq".to_string(), client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|result|
-        if result.ends_with(".m3u8") { Ok(result) } else { 
-            println!("Failed to fetch with Braflix API - FlixHQ - Moving on to VidSrc");
-            try_get_link_from_api_source("vidsrc".to_string(), client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|vidsrc_result|{
-                if vidsrc_result.ends_with(".m3u8") {Ok(vidsrc_result)} else {
-                    println!("Failed to fetch with Braflix API - VidSrc - Moving on to SuperStream");
-                    try_get_link_from_api_source("superstream".to_string(), client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|superstream_result|{
-                        if superstream_result.ends_with(".m3u8") { Ok(superstream_result) } else {
-                            println!("Failed to fetch with Braflix API - SuperStream - Moving on to FebBox");
-                            try_get_link_from_api_source("febbox".to_string(), client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|febbox_result|{
-                                if febbox_result.ends_with(".m3u8") { Ok(febbox_result) } else {
-                                    println!("Failed to fetch with Braflix API - FebBox - Moving on to OverFlix");
-                                    try_get_link_from_api_source("overflix".to_string(), client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|overflix_result|{
-                                        if overflix_result.ends_with(".m3u8") {Ok(overflix_result)} else {
-                                            println!("Failed to fetch with Braflix API - Overflix - Moving on to VisionCine");
-                                            try_get_link_from_api_source("visioncine".to_string(), client.clone(), series.clone(), season.clone(), episode.clone())
-                                        }
-                                    })
-                                }
-                            })
-                        }
-                    })
+    let args = Args::parse();
+    if args.search.is_empty() {
+        //display search menu
+    } else {
+        let search = search(client.clone(), args.search).unwrap();
+        if args.first {
+            if args.season == 0 {
+                //display season select menu
+                //when season is selected, if episode is 0, display episode select menu, otherwise, play episode
+            } else {
+                if args.episode == 0 {
+                    //display episode select menu
+                } else {
+                    let media_url = get_link(client, search.results[0].to_owned(), /*search.results[0].id.to_string(),*/ args.season.to_string(), args.episode.to_string()).unwrap();
+                    Command::new("mpv")
+                        .arg(&media_url)
+                        .arg(format!("--force-media-title={0}", search.results[0].name.clone().unwrap()))
+                        .arg("--no-terminal")
+                        .spawn()
+                        .expect("Failed to open MPV");
+                    println!("attempted to open mpv with url {}", media_url);
                 }
-            })
+            }
         }
-    );
-    Ok(res.unwrap())
-}
-
-fn get_link_from_vid_source(client: blocking::Client, show_id: String, season: String, episode: String) -> Result<String, Box<dyn Error>> {
-    let url = format!("{0}/vidsrc/{1}?s={2}&e={3}", BRAFLIX_VID, show_id, season, episode);
-    let json: Vec<VidSource> = client.get(url)
-        .send()?
-        .json()
-        .unwrap();
-    let binding = VidSourceData {
-            file: "".to_string(),
-            sub: vec![],
-        };
-    let data = match &json[0].data {
-        IntOrVidSourceData::A(source) => source,
-        IntOrVidSourceData::B(_) => &binding,
-    };
-    for sub_track in 0..data.sub.len() {
-        println!("Subtitle found with language string {}", data.sub[sub_track].clone().lang.unwrap_or_else(|| {data.sub[sub_track].clone().language.expect("Failed to get both languages for sub track")}));
     }
-    Ok(data.file.to_string())
-}
-
-fn get_link(client: blocking::Client, series: SeriesInfo, show_id: String, season: String, episode: String) -> Result<String, Box<dyn Error>> {
-    let link = get_link_from_api_source(client.clone(), series.clone(), season.clone(), episode.clone()).and_then(|res|{
-        if !res.is_empty() && res.ends_with(".m3u8") {Ok(res)} else {
-            get_link_from_vid_source(client.clone(), show_id.clone(), season.clone(), episode.clone())
-        }
-    });
-    Ok(link.unwrap())
-}
-
-fn search(client: blocking::Client, search_term: String) -> Result<SearchResults, Box<dyn Error>> {
-    println!("{}", [TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_BRAFLIX_API_KEY].concat());
-    let json: SearchResults = client.get([TMDB_API, "/3/search/multi?language=en&page=1&query=", &search_term, "&api_key=", TMDB_BRAFLIX_API_KEY].concat())
-        .send()?
-        .json()
-        .unwrap();
-    Ok(json)
 }
