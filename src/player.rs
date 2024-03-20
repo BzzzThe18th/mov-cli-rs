@@ -1,6 +1,5 @@
 use std::process::Command;
 use reqwest::blocking::Client;
-use serde::de::IntoDeserializer;
 use crate::structs::{Args, SeriesResult};
 use crate::scraping::get_link;
 use termsize;
