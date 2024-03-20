@@ -22,11 +22,11 @@ fn prompt_search(args: &Args, client: &Client) {
                 if args.episode == -1 {
                     display_episodes(args, client, &result, args.season, &search.results);
                 } else {
-                    play_episode(client, &result, args.season, args.episode);
+                    play_episode(args, client, &result, args.season, args.episode);
                 }
             }
         } else {
-            play_episode(client, &result, 1, 1);
+            play_episode(args, client, &result, 1, 1);
         }
     }
 }
@@ -119,14 +119,14 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
         if series.media_type == "tv" {
             display_seasons(args, client, &series, &search_results);
         } else {
-            play_episode(client, &series, 1, 1);
+            play_episode(args, client, &series, 1, 1);
         }
     } else {
         //episode is not specified
         if args.episode == -1 {
             display_episodes(args, client, &series, args.season, &search_results);
         } else {
-            play_episode(client, &series, args.season, args.episode);
+            play_episode(args, client, &series, args.season, args.episode);
         }
     }
 }
@@ -186,7 +186,7 @@ pub fn display_seasons(args: &Args, client: &Client, series: &SeriesResult, sear
     if args.episode == -1 {
         display_episodes(args, client, series, season.season_number, &search_results);
     } else {
-        play_episode(client, series, season.season_number, args.episode);
+        play_episode(args, client, series, season.season_number, args.episode);
     }
 }
 
@@ -225,5 +225,5 @@ pub fn display_episodes(args: &Args, client: &Client, series: &SeriesResult, sea
         }
     }
 
-    play_episode(client, series, season, episode_num.parse::<i32>().unwrap());
+    play_episode(args, client, series, season, episode_num.parse::<i32>().unwrap());
 }

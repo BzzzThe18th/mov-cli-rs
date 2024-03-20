@@ -39,11 +39,11 @@ fn main() {
                 if args.episode == -1 {
                     display_episodes(&args, &client, &result, args.season, &search.results);
                 } else {
-                    play_episode(&client, &result, args.season, args.episode);
+                    play_episode(&args, &client, &result, args.season, args.episode);
                 }
             }
         } else {
-            play_episode(&client, &result, 1, 1);
+            play_episode(&args, &client, &result, 1, 1);
         }
     }
 }
