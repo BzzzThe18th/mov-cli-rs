@@ -16,7 +16,17 @@ fn prompt_search(args: &Args, client: &Client) {
     } else {
         let result = search.results[0].to_owned();
         if result.media_type == "tv" {
-            display_seasons(args, &client, &result, &search.results);
+            if args.season == -1 {
+                display_seasons(args, &client, &result, &search.results);
+            } else {
+                if args.episode == -1 {
+                    display_episodes(args, client, &result, 1, &search.results);
+                } else {
+                    play_episode(client, &result, 1, 1);
+                }
+            }
+        } else {
+            play_episode(client, &result, 1, 1);
         }
     }
 }
