@@ -7,7 +7,7 @@ use reqwest::blocking::Client;
 static SERIES_OPTIONS: [&str; 2] = ["search again", "quit"];
 static OTHER_OPTIONS: [&str; 3] = ["back", "search again", "quit"];
 
-fn prompt_search(args: &Args, client: &Client) {
+pub fn prompt_search(args: &Args, client: &Client) {
     print!("Search for: ");
     let input: &String = &text_io::read!("{}\n");
     let search = search(&client, input).unwrap();
