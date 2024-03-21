@@ -8,15 +8,25 @@ static SERIES_OPTIONS: [&str; 2] = ["search again", "quit"];
 static OTHER_OPTIONS: [&str; 3] = ["back", "search again", "quit"];
 
 fn prompt_search(args: &Args, client: &Client) {
-    print!("Search for:");
+    print!("Search for: ");
     let input: &String = &text_io::read!("{}\n");
     let search = search(&client, input).unwrap();
     if !args.first {
-        display_series(args, &client, &search.results)
+        display_series(args, client, &search.results)
     } else {
         let result = search.results[0].to_owned();
         if result.media_type == "tv" {
-            display_seasons(args, &client, &result, &search.results);
+            if args.season == -1 {
+                display_seasons(args, client, &result, &search.results);
+            } else {
+                if args.episode == -1 {
+                    display_episodes(args, client, &result, args.season, &search.results);
+                } else {
+                    play_episode(args, client, &result, args.season, args.episode);
+                }
+            }
+        } else {
+            play_episode(args, client, &result, 1, 1);
         }
     }
 }
@@ -109,14 +119,14 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
         if series.media_type == "tv" {
             display_seasons(args, client, &series, &search_results);
         } else {
-            play_episode(client, &series, 1, 1);
+            play_episode(args, client, &series, 1, 1);
         }
     } else {
         //episode is not specified
         if args.episode == -1 {
             display_episodes(args, client, &series, args.season, &search_results);
         } else {
-            play_episode(client, &series, args.season, args.episode);
+            play_episode(args, client, &series, args.season, args.episode);
         }
     }
 }
@@ -176,7 +186,7 @@ pub fn display_seasons(args: &Args, client: &Client, series: &SeriesResult, sear
     if args.episode == -1 {
         display_episodes(args, client, series, season.season_number, &search_results);
     } else {
-        play_episode(client, series, season.season_number, args.episode);
+        play_episode(args, client, series, season.season_number, args.episode);
     }
 }
 
@@ -215,5 +225,5 @@ pub fn display_episodes(args: &Args, client: &Client, series: &SeriesResult, sea
         }
     }
 
-    play_episode(client, series, season, episode_num.parse::<i32>().unwrap());
+    play_episode(args, client, series, season, episode_num.parse::<i32>().unwrap());
 }

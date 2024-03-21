@@ -12,6 +12,7 @@ mod fzf;
 use fzf::*;
 mod structs;
 use structs::Args;
+use player::play_episode;
 
 fn main() {
     let mut headers = HeaderMap::new();
@@ -28,11 +29,21 @@ fn main() {
     let args = Args::parse();
     let search = search(&client, &args.search).unwrap();
     if !args.first {
-        display_series(&args, &client, &search.results);
+        display_series(&args, &client, &search.results)
     } else {
         let result = search.results[0].to_owned();
         if result.media_type == "tv" {
-            display_seasons(&args, &client, &result, &search.results);
+            if args.season == -1 {
+                display_seasons(&args, &client, &result, &search.results);
+            } else {
+                if args.episode == -1 {
+                    display_episodes(&args, &client, &result, args.season, &search.results);
+                } else {
+                    play_episode(&args, &client, &result, args.season, args.episode);
+                }
+            }
+        } else {
+            play_episode(&args, &client, &result, 1, 1);
         }
     }
 }
