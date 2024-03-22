@@ -12,21 +12,21 @@ pub fn prompt_search(args: &Args, client: &Client) {
     let input: &String = &text_io::read!("{}\n");
     let search = search(&client, input).unwrap();
     if !args.first {
-        display_series(args, client, &search.results)
+        return display_series(args, client, &search.results)
     } else {
         let result = search.results[0].to_owned();
         if result.media_type == "tv" {
             if args.season == -1 {
-                display_seasons(args, client, &result, &search.results);
+                return display_seasons(args, client, &result, &search.results);
             } else {
                 if args.episode == -1 {
-                    display_episodes(args, client, &result, args.season, &search.results);
+                    return display_episodes(args, client, &result, args.season, &search.results);
                 } else {
-                    play_episode(args, client, &result, args.season, args.episode);
+                    return play_episode(args, client, &result, args.season, args.episode);
                 }
             }
         } else {
-            play_episode(args, client, &result, 1, 1);
+            return play_episode(args, client, &result, 1, 1);
         }
     }
 }
@@ -47,24 +47,20 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
         let result = search_results[i].to_owned();
         if search_results[i].title.is_none() {series_names[i] = result.name.unwrap()} else {series_names[i] = result.title.unwrap()}
         
-        let mut append_str = String::new();
-        if result.first_air_date.is_none() && result.release_date.is_none() {
-            append_str = " (N/A)".to_string();
-        } else if !result.first_air_date.is_none() {
-            let mut date = result.first_air_date.unwrap();
+        let mut year = String::from("N/A");
+        if !result.first_air_date.is_none() {
+            let date = result.first_air_date.unwrap();
             if !date.is_empty() {
-                let air_year = format!(" ({})", date.split_at_mut(4).0);
-                append_str = air_year;
+                year = date.split_at(4).0.to_string();
             }
         } else if !result.release_date.is_none() {
-            let mut date = result.release_date.unwrap();
+            let date = result.release_date.unwrap();
             if !date.is_empty() {
-                let release_year = format!(" ({})", date.split_at_mut(4).0);
-                append_str = release_year;
+                year = date.split_at(4).0.to_string();
             }
         }
-        
-        series_names[i].push_str(append_str.as_str());
+
+        series_names[i].push_str(format!(" ({} - {})", result.media_type.to_uppercase(), year).as_str());
     }
 
     let mut _series_options = vec![String::new(); SERIES_OPTIONS.len()];
@@ -74,11 +70,12 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
 
     series_names.append(&mut _series_options);
     let series_name: String = run_with_output(fzf, series_names).unwrap();
+    if series_name.is_empty() { return }
 
     if SERIES_OPTIONS.contains(&series_name.as_str()) {
         match series_name.as_str() {
             "search again" => {
-                prompt_search(args, client);
+                return prompt_search(args, client);
             }
             "quit" => {
                 return;
@@ -92,41 +89,37 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
     let mut series_index = 0;
     for k in 0..search_results.len() {
         let result = search_results[k].to_owned();
-        let mut append_str = String::new();
-        if result.first_air_date.is_none() && result.release_date.is_none() {
-            append_str = " (N/A)".to_string();
-        } else if !result.first_air_date.is_none() {
-            let mut date = result.first_air_date.unwrap();
+
+        let mut year = String::from("N/A");
+        if !result.first_air_date.is_none() {
+            let date = result.first_air_date.unwrap();
             if !date.is_empty() {
-                let air_year = format!(" ({})", date.split_at_mut(4).0);
-                append_str = air_year;
+                year = date.split_at(4).0.to_string();
             }
         } else if !result.release_date.is_none() {
-            let mut date = result.release_date.unwrap();
+            let date = result.release_date.unwrap();
             if !date.is_empty() {
-                let release_year = format!(" ({})", date.split_at_mut(4).0);
-                append_str = release_year;
+                year = date.split_at(4).0.to_string();
             }
         }
 
         let mut name = if result.title.is_none() {result.name.unwrap()} else {result.title.unwrap()};
-        name.push_str(&append_str);
+        name.push_str(format!(" ({} - {})", result.media_type, year).as_str());
         if name == series_name {series_index=k}
     }
     let series = search_results[series_index].to_owned();
     
     if args.season == -1 {
         if series.media_type == "tv" {
-            display_seasons(args, client, &series, &search_results);
+            return display_seasons(args, client, &series, &search_results);
         } else {
-            play_episode(args, client, &series, 1, 1);
+            return play_episode(args, client, &series, 1, 1);
         }
     } else {
-        //episode is not specified
         if args.episode == -1 {
-            display_episodes(args, client, &series, args.season, &search_results);
+            return display_episodes(args, client, &series, args.season, &search_results);
         } else {
-            play_episode(args, client, &series, args.season, args.episode);
+            return play_episode(args, client, &series, args.season, args.episode);
         }
     }
 }
@@ -165,10 +158,10 @@ pub fn display_seasons(args: &Args, client: &Client, series: &SeriesResult, sear
     if OTHER_OPTIONS.contains(&season_name.as_str()) {
         match season_name.as_str() {
             "back" => {
-                display_series(args, client, &search_results);
+                return display_series(args, client, &search_results);
             }
             "search again" => {
-                prompt_search(args, client);
+                return prompt_search(args, client);
             }
             "quit" => {
                 return;
@@ -184,9 +177,9 @@ pub fn display_seasons(args: &Args, client: &Client, series: &SeriesResult, sear
 
     //episode is not specified
     if args.episode == -1 {
-        display_episodes(args, client, series, season.season_number, &search_results);
+        return display_episodes(args, client, series, season.season_number, &search_results);
     } else {
-        play_episode(args, client, series, season.season_number, args.episode);
+        return play_episode(args, client, series, season.season_number, args.episode);
     }
 }
 
@@ -218,10 +211,10 @@ pub fn display_episodes(args: &Args, client: &Client, series: &SeriesResult, sea
 
     if OTHER_OPTIONS.contains(&episode_num.as_str()) {
         match episode_num.as_str() {
-            "back" => {display_seasons(args, client, &series, search_results)}
-            "search again" => {prompt_search(args, client)}
-            "quit" => {return;}
-            _ => {panic!();}
+            "back" => return display_seasons(args, client, &series, search_results),
+            "search again" => return prompt_search(args, client),
+            "quit" => return,
+            _ => panic!(),
         }
     }
 
