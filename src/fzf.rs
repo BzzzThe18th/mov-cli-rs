@@ -150,7 +150,7 @@ pub fn display_seasons(args: &Args, client: &Client, series: &SeriesResult, sear
         let season = seasons[i].to_owned();
         season_names[i] = season.name;
         
-        let append_str = format!(" ({})", season.air_date.split_at(4).0);
+        let append_str = format!(" ({})", if season.air_date.is_none() {"N/A".to_string()} else {season.air_date.to_owned().unwrap().split_at(4).0.to_string()});
         
         season_names[i].push_str(append_str.as_str());
     }
@@ -179,7 +179,7 @@ pub fn display_seasons(args: &Args, client: &Client, series: &SeriesResult, sear
         }
     }
 
-    let series_index = seasons.iter().position(|r| [r.name.to_owned(), " (".to_string(), r.air_date.split_at(4).0.to_owned(), ")".to_string()].concat() == season_name).unwrap();
+    let series_index = seasons.iter().position(|r| [r.name.to_owned(), " (".to_string(), if r.air_date.is_none() {"N/A".to_string()} else {r.air_date.to_owned().unwrap().split_at(4).0.to_string()}, ")".to_string()].concat() == season_name).unwrap();
     let season = seasons[series_index].clone();
 
     //episode is not specified
