@@ -81,7 +81,7 @@ pub struct SeasonInfo {
     pub id: i32,
     pub name: String,
     pub season_number: i32,
-    pub air_date: String,
+    pub air_date: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
