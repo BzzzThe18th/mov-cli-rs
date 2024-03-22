@@ -24,15 +24,15 @@ fn try_get_link_from_api_source(provider: String, client: &blocking::Client, ser
         // }
 
         if sources[0].url.ends_with(".m3u8") {
-            print!("success - playing with highest quality ({})\n", sources[0].quality.to_lowercase());
+            print!("success - playing ({})\n", sources[0].quality.to_lowercase());
             std::thread::sleep(Duration::from_millis(2500));
             return Ok(sources[0].url.to_string())
         } else {
-            print!("failed - encrypted result\n");
+            print!("failed - encrypted\n");
             return Ok(String::from(""));
         }
     }
-    print!("failed - unknown error\n");
+    print!("failed - error\n");
     Ok(String::from(""))
 }
 
