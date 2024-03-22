@@ -74,15 +74,9 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
 
     if SERIES_OPTIONS.contains(&series_name.as_str()) {
         match series_name.as_str() {
-            "search again" => {
-                return prompt_search(args, client);
-            }
-            "quit" => {
-                return;
-            }
-            _ => {
-                panic!();
-            }
+            "search again" => return prompt_search(args, client),
+            "quit" => return,
+            _ => panic!(),
         }
     }
 
@@ -104,7 +98,7 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
         }
 
         let mut name = if result.title.is_none() {result.name.unwrap()} else {result.title.unwrap()};
-        name.push_str(format!(" ({} - {})", result.media_type, year).as_str());
+        name.push_str(format!(" ({} - {})", result.media_type.to_uppercase(), year).as_str());
         if name == series_name {series_index=k}
     }
     let series = search_results[series_index].to_owned();

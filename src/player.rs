@@ -45,6 +45,7 @@ pub fn play_episode(args: &Args,client: &Client, series: &SeriesResult, season: 
         "previous" => return play_episode(args, client, series, season, episode - 1),
         "search again" => prompt_search(args, client),
         "quit" => return,
+        "" => return,
         _ => panic!(),
     }
 }
