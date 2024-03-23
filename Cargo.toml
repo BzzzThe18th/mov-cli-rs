@@ -9,6 +9,10 @@ license-file = "LICENSE"
 keywords = ["cli", "movies", "tv", "anime", "scraping"]
 categories = ["command-line-interface", "command-line-utilities"]
 edition = "2021"
+exclude = [
+    ".gitattributes",
+    ".gitignore",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
