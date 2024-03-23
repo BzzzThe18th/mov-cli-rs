@@ -19,7 +19,7 @@
 > this is currently a very early in-progress tool that is being developed as I learn rust, issues will arise
 
 ## Installation
-TODO - crate not even published lol
+Installing mov-cli-rs is as easy as ensuring cargo and rust are both installed and running `cargo install mov-cli-rs` in your terminal. Before running this, ensure you have all the dependencies listed below.
 
 ### Dependencies
 - **Supported OS:**
@@ -30,7 +30,22 @@ TODO - crate not even published lol
 - **[![mpv][mpv-shield]](https://mpv.io/installation/)** (recommended - **only** extraction will work without mpv)
 
 ## Usage
-TODO
+The basic CLI command is just `mov-cli-rs`, the only required argument is the search term. The most basic usage of this can look like `mov-cli-rs "bee and puppycat"`.
+### Extraction Argument
+The `--extract` argument prints the playlist URL to your terminal instead of opening the player with the URL.
+### Quality Argument
+The `-q` or `--quality` argument allows you to specify a quality that will be selected if found, if not, it will default to the highest quality. Values for this argument look like `720p` or `auto`, so `-q 360p` would use the 360p URL if available.
+### First Argument
+The `-f` or `--first` argument selects the first result instead of displaying the series menu.
+### Season Argument
+The `-s` or `--season` argument selects the specified season instead of diplsaying the season menu.
+### Episode Argument
+The `-e` or `--episode` argument selects the specified episode instead of displaying the episode menu.
+### Examples
+If you wanted to, for example, play season 21 episode 3 of south park at 720p and you know it'll be the first result, you could use
+```
+mov-cli-rs "south park" -f -s 21 -e 3 -q 720p
+```
 
 ## TODO
 - [x] Playlist extract argument
