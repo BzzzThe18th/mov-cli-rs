@@ -1,6 +1,12 @@
 [package]
 name = "mov-cli-rs"
-version = "0.1.0"
+description = "A CLI tool for scraping and playing TV, movies and anime."
+authors = ["BzzzThe18th"]
+version = "1.0.0"
+repository = "https://github.com/BzzzThe18th/mov-cli-rs"
+license = "LGPL-2.1"
+keywords = ["cli", "movies", "tv", "anime", "scraping"]
+categories = ["command-line-interface", "command-line-utilities"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
