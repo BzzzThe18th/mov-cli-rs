@@ -12,6 +12,9 @@ pub struct Args {
     /// Instead of opening MPV, print the playlist URL
     #[arg(long, default_value_t=false, required=false)]
     pub extract: bool,
+    /// Select a specific quality (like 1080p, auto)
+    #[arg(short, long, default_value_t=String::new(), required=false)]
+    pub quality: String,
     /// Download video to home instead of opening MPV
     #[arg(short, long, default_value_t=false, required=false)]
     pub download: bool,

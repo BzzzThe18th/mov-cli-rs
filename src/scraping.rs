@@ -1,10 +1,10 @@
 use reqwest::blocking;
 use std::error::Error;
 use std::time::Duration;
-use crate::structs::{APISourceResults, SearchResults, SeasonData, SeriesInfo, SeriesResult};
+use crate::structs::{Args, APISourceResults, SearchResults, SeasonData, SeriesInfo, SeriesResult};
 use crate::constants::{self, BRAFLIX_API, TMDB_API, TMDB_BRAFLIX_API_KEY};
 
-fn try_get_link_from_api_source(provider: String, client: &blocking::Client, series: &SeriesResult, season: &String, episode: &String) -> Result<String, Box<dyn Error>> {
+fn try_get_link_from_api_source(provider: String, args: &Args, client: &blocking::Client, series: &SeriesResult, season: &String, episode: &String) -> Result<String, Box<dyn Error>> {
     print!("trying to fetch from provider {}... ", provider);
     let attempt = || -> Result<String, Box<dyn Error>> {
         let mut year = String::new();
@@ -43,10 +43,12 @@ fn try_get_link_from_api_source(provider: String, client: &blocking::Client, ser
             //     println!("Subtitle found with language string {}", subs[sub_track].clone().lang.unwrap_or_else(|| {subs[sub_track].clone().language.expect("Failed to get both languages for sub track")}));
             // }
 
-            if sources[0].url.ends_with(".m3u8") {
+            let source = if args.quality.is_empty() {&sources[0]} else {&sources[sources.iter().position(|r| r.quality.to_lowercase() == args.quality).unwrap_or_else(||{0})]}; 
+
+            if source.url.ends_with(".m3u8") {
                 print!("success - playing ({})\n", sources[0].quality.to_lowercase());
                 std::thread::sleep(Duration::from_millis(2500));
-                return Ok(sources[0].url.to_string())
+                return Ok(source.url.to_string())
             } else {
                 print!("failed - encrypted\n");
                 return Ok(String::new());
@@ -65,20 +67,20 @@ fn try_get_link_from_api_source(provider: String, client: &blocking::Client, ser
     Ok(get_safely().unwrap())
 }
 
-fn get_link_from_api_source(client: &blocking::Client, series: &SeriesResult, season: &String, episode: &String) -> Result<String, Box<dyn Error>> {
-    let res = try_get_link_from_api_source("flixhq".to_string(), client, series, season, episode).and_then(|result|
+fn get_link_from_api_source(args: &Args, client: &blocking::Client, series: &SeriesResult, season: &String, episode: &String) -> Result<String, Box<dyn Error>> {
+    let res = try_get_link_from_api_source("flixhq".to_string(), args, client, series, season, episode).and_then(|result|
         if result.ends_with(".m3u8") { Ok(result) } else { 
-            try_get_link_from_api_source("vidsrc".to_string(), client, series, season, episode).and_then(|vidsrc_result|{
+            try_get_link_from_api_source("vidsrc".to_string(), args, client, series, season, episode).and_then(|vidsrc_result|{
                 if vidsrc_result.ends_with(".m3u8") {Ok(vidsrc_result)} else {
-                    try_get_link_from_api_source("vidsrcto".to_string(), client, series, season, episode).and_then(|vidsrcto_result|{
+                    try_get_link_from_api_source("vidsrcto".to_string(), args, client, series, season, episode).and_then(|vidsrcto_result|{
                         if vidsrcto_result.ends_with(".m3u8") {Ok(vidsrcto_result)} else {
-                            try_get_link_from_api_source("superstream".to_string(), client, series, season, episode).and_then(|superstream_result|{
+                            try_get_link_from_api_source("superstream".to_string(), args, client, series, season, episode).and_then(|superstream_result|{
                                 if superstream_result.ends_with(".m3u8") { Ok(superstream_result) } else {
-                                    try_get_link_from_api_source("febbox".to_string(), client, series, season, episode).and_then(|febbox_result|{
+                                    try_get_link_from_api_source("febbox".to_string(), args, client, series, season, episode).and_then(|febbox_result|{
                                         if febbox_result.ends_with(".m3u8") { Ok(febbox_result) } else {
-                                            try_get_link_from_api_source("overflix".to_string(), client, series, season, episode).and_then(|overflix_result|{
+                                            try_get_link_from_api_source("overflix".to_string(), args, client, series, season, episode).and_then(|overflix_result|{
                                                 if overflix_result.ends_with(".m3u8") {Ok(overflix_result)} else {
-                                                    try_get_link_from_api_source("visioncine".to_string(), client, series, season, episode).and_then(|_visioncine_result|{
+                                                    try_get_link_from_api_source("visioncine".to_string(), args, client, series, season, episode).and_then(|_visioncine_result|{
                                                         Ok(String::new())
                                                     })
                                                 }
@@ -114,8 +116,8 @@ pub fn get_series_info(client: &blocking::Client, show_id: i32) -> Result<Series
     Ok(json)
 }
 
-pub fn get_link(client: &blocking::Client, series: &SeriesResult, season: i32, episode: i32) -> Result<String, Box<dyn Error>> {
-    let link = get_link_from_api_source(client, series, &season.to_string(), &episode.to_string());
+pub fn get_link(args: &Args, client: &blocking::Client, series: &SeriesResult, season: i32, episode: i32) -> Result<String, Box<dyn Error>> {
+    let link = get_link_from_api_source(args, client, series, &season.to_string(), &episode.to_string());
     Ok(link.unwrap())
 }
 

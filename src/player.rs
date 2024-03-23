@@ -10,13 +10,15 @@ use crate::scraping::get_link;
 use crate::fzf::prompt_search;
 
 pub fn play_episode(args: &Args,client: &Client, series: &SeriesResult, season: i32, episode: i32) {
-    let media_url = get_link(client, series, season, episode).unwrap();
+    let media_url = get_link(args, client, series, season, episode).unwrap();
     if args.extract {
         let cols = termsize::get().unwrap().cols;
 
         println!("{}",vec!["=";cols.into()].concat());
         println!("{}",media_url);
         println!("{}",vec!["=";cols.into()].concat());
+
+        return;
     } else {
     Command::new("mpv")
         .arg(&media_url)
