@@ -69,7 +69,7 @@ I'm new to having contributors on any of my projects, I will welcome it but may 
 - Inspired by [ani-cli](https://github.com/pystardust/ani-cli) and [mov-cli](https://github.com/mov-cli/mov-cli)
 - README referenced from [mov-cli](https://github.com/mov-cli/mov-cli)
 
-[contributors-shield]: https://img.shields.io/github/contributors/mov-cli-rs/mov-cli-rs.svg?style=for-the-badge
+[contributors-shield]: https://img.shields.io/github/contributors/bzzzthe18th/mov-cli-rs.svg?style=for-the-badge
 [contributors-url]: https://github.com/bzzzthe18th/mov-cli-rs/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/bzzzthe18th/mov-cli-rs.svg?style=for-the-badge
 [forks-url]: https://github.com/bzzzthe18th/mov-cli-rs/network/members
