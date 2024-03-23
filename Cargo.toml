@@ -12,8 +12,6 @@ edition = "2021"
 exclude = [
     ".gitattributes",
     ".gitignore",
-    "Cargo.lock",
-    ".cargo_vcs_info.json",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
