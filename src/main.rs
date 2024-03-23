@@ -31,19 +31,19 @@ fn main() {
     if !args.first {
         display_series(&args, &client, &search.results)
     } else {
-        let result = search.results[0].to_owned();
+        let result = &search.results[0];
         if result.media_type == "tv" {
             if args.season == -1 {
-                display_seasons(&args, &client, &result, &search.results);
+                display_seasons(&args, &client, result, &search.results);
             } else {
                 if args.episode == -1 {
-                    display_episodes(&args, &client, &result, args.season, &search.results);
+                    display_episodes(&args, &client, result, args.season, &search.results);
                 } else {
-                    play_episode(&args, &client, &result, args.season, args.episode);
+                    play_episode(&args, &client, result, args.season, args.episode);
                 }
             }
         } else {
-            play_episode(&args, &client, &result, 1, 1);
+            play_episode(&args, &client, result, 1, 1);
         }
     }
 }

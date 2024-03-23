@@ -14,19 +14,19 @@ pub fn prompt_search(args: &Args, client: &Client) {
     if !args.first {
         return display_series(args, client, &search.results)
     } else {
-        let result = search.results[0].to_owned();
+        let result = &search.results[0];
         if result.media_type == "tv" {
             if args.season == -1 {
-                return display_seasons(args, client, &result, &search.results);
+                return display_seasons(args, client, result, &search.results);
             } else {
                 if args.episode == -1 {
-                    return display_episodes(args, client, &result, args.season, &search.results);
+                    return display_episodes(args, client, result, args.season, &search.results);
                 } else {
-                    return play_episode(args, client, &result, args.season, args.episode);
+                    return play_episode(args, client, result, args.season, args.episode);
                 }
             }
         } else {
-            return play_episode(args, client, &result, 1, 1);
+            return play_episode(args, client, result, 1, 1);
         }
     }
 }
@@ -45,7 +45,7 @@ pub fn display_series(args: &Args, client: &Client, search_results: &Vec<SeriesR
     let mut series_names = vec![String::new(); (search_results.len() - 1) as usize];
     for i in 0..(search_results.len() - 1) as usize {
         let result = search_results[i].to_owned();
-        if search_results[i].title.is_none() {series_names[i] = result.name.unwrap()} else {series_names[i] = result.title.unwrap()}
+        if result.title.is_none() {series_names[i] = result.name.unwrap()} else {series_names[i] = result.title.unwrap()}
         
         let mut year = String::from("N/A");
         if !result.first_air_date.is_none() {
