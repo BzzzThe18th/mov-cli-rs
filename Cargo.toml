@@ -2,7 +2,7 @@
 name = "mov-cli-rs"
 description = "A CLI tool for scraping and playing TV, movies and anime."
 authors = ["BzzzThe18th"]
-version = "1.0.0"
+version = "1.0.1"
 repository = "https://github.com/BzzzThe18th/mov-cli-rs"
 readme = "README.md"
 license-file = "LICENSE"
