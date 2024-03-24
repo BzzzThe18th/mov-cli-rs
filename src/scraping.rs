@@ -24,12 +24,25 @@ fn try_get_link_from_api_source(provider: String, args: &Args, client: &blocking
             }
         }
         let url = format!("{0}/{1}/sources-with-title?title={2}{3}&mediaType={4}&episodeId={5}&seasonId={6}&tmdbId={7}", BRAFLIX_API, provider, if series.name.is_none() {series.title.to_owned().unwrap()} else {series.name.to_owned().unwrap()}, year, series.media_type, episode, season, series.id);
-        let json: APISourceResults = client.get(&url)
+        let json: Result<APISourceResults, reqwest::Error> = client.get(&url)
             .send()?
-            .json()
-            .unwrap();
-        if !json.sources.is_none() {
-            let mut sources = json.sources.unwrap();
+            .json();
+        
+        /* 
+            this'll handle the json decoding safely, unsure why but the safe handling does not cover this? tested with alternate API URL and got 'failed - panicked`
+            for every source, does reqwest's serde feature somehow unintentionally pass by this?
+            ps: this happened because flixhq is down, braflix seems to have some way to check what's up and not up, need to implement that at some point, would
+            also give a chance to make it prettier
+            
+            bzzzthe18th
+        */
+        if json.is_err() {
+            print!("failed - unknown error");
+            return Ok(String::new());
+        }
+        let safe_json = json.unwrap();
+        if !safe_json.sources.is_none() {
+            let mut sources = safe_json.sources.unwrap();
             if sources.len() <= 0 {
                 print!("failed - sources len 0\n");
                 return Ok(String::new());
@@ -37,7 +50,7 @@ fn try_get_link_from_api_source(provider: String, args: &Args, client: &blocking
             sources.sort_by_key(|k| k.quality.to_lowercase().replace("auto", "0").replace("p", "").parse::<i32>().unwrap());
             sources.reverse();
 
-            //TODO: implement subtitle stuff
+            // TODO: implement subtitle stuff
             // let subs = json.subtitles.unwrap();
             // for sub_track in 0..subs.len() {
             //     println!("Subtitle found with language string {}", subs[sub_track].clone().lang.unwrap_or_else(|| {subs[sub_track].clone().language.expect("Failed to get both languages for sub track")}));
