@@ -51,7 +51,7 @@ mov-cli-rs "south park" -f -s 21 -e 3 -q 720p
 - [x] Playlist extract argument
 - [x] Media FZF menu
 - [x] Quality argument
-- [ ] Finish README
+- [x] Finish README
 - [ ] Download argument
 - [ ] More source resolving
 - [ ] More player support
